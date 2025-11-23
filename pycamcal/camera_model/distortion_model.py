@@ -1,5 +1,6 @@
 from abc import ABC
 from dataclasses import dataclass
+from functools import lru_cache
 
 import numpy as np
 import scipy.optimize
@@ -18,13 +19,24 @@ class DistortionModel(ABC):
         raise NotImplementedError()
 
 
-@dataclass
 class RadialTangentialDistortion(DistortionModel):
     k1: float
     k2: float
     k3: float
     p1: float
     p2: float
+
+    def __init__(self, k1, k2, k3, p1, p2):
+        self.k1 = k1
+        self.k2 = k2
+        self.k3 = k3
+        self.p1 = p1
+        self.p2 = p2
+    
+        self.undistort_cache: dict[
+            tuple[float, float, float],
+            tuple[float, float, float]
+        ] = {}
 
     def distort(self, rays_external: np.ndarray) -> np.ndarray:
         x = rays_external[..., 0]
@@ -51,7 +63,17 @@ class RadialTangentialDistortion(DistortionModel):
 
         undistorted = []
         for d_pt in tqdm(rays_internal, desc="undistorting rays"):
-            solution = scipy.optimize.root(func, x0=d_pt, args=(d_pt,), method="hybr")
-            undistorted.append(solution.x)
+            # attempt to find in the cache first
+            lookup_key = tuple(d_pt)
+            cache_lookup = self.undistort_cache.get(lookup_key, None)
+            if cache_lookup is not None:
+                undistorted.append(cache_lookup)
+            else:
+                # compute inverse numerically (expensive)
+                # TODO: use second order solver
+                solution = scipy.optimize.root(func, x0=d_pt, args=(d_pt,), method="hybr", tol=1e-3)
+                val = solution.x
+                self.undistort_cache[lookup_key] = val
+                undistorted.append(val)
 
         return np.array(undistorted)

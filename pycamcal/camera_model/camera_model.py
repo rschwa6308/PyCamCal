@@ -36,8 +36,19 @@ class CameraModel:
             [0.0,     self.fy, self.cy],
             [0.0,      0.0,    1.0    ]
         ])
+    
+    def get_fov(self, degrees=False) -> tuple[float, float]:
+        width, height = self.res_xy
+        fov_x = 2 * np.arctan((width / 2) / self.fx)
+        fov_y = 2 * np.arctan((height / 2) / self.fy)
 
-    def cast_ray_from_pixel(self, pixel_coords: np.ndarray, normalized=True):
+        if degrees:
+            fov_x = np.rad2deg(fov_x)
+            fov_y = np.rad2deg(fov_y)
+
+        return fov_x, fov_y
+
+    def cast_ray_from_pixel(self, pixel_coords: np.ndarray, normalized=True, include_distortion=True):
         "Cast ray(s) from the given (sub)pixel coordinate(s)"
 
         K = self.get_instrinsics_matrix()
@@ -53,7 +64,7 @@ class CameraModel:
         points_internal = points_internal[:,:2] / points_internal[:,2:3]
 
         # invert lens distortion
-        if self.distortion is not None:
+        if self.distortion is not None and include_distortion:
             points_external = self.distortion.undistort(points_internal)
         else:
             points_external = points_internal

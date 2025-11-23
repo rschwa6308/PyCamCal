@@ -5,7 +5,7 @@ from ..primitives import Pose3D
 from ..camera_model import CameraModel
 
 
-def raycast_scene(scene: list[open3d.geometry.TriangleMesh], camera: CameraModel, camera_pose: Pose3D) -> np.ndarray:
+def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraModel, camera_pose: Pose3D) -> np.ndarray:
     """
     Perform a raycast image capture simulation of the given camera at the given position within a scene.
     Scene consists of colored meshes.
@@ -21,7 +21,6 @@ def raycast_scene(scene: list[open3d.geometry.TriangleMesh], camera: CameraModel
     pixel_centers = pixel_centers.reshape((-1, 2))  # flatten
 
     ray_directions_sensor = camera.cast_ray_from_pixel(pixel_centers)
-    print(ray_directions_sensor.shape)
     ray_directions_world  = camera_pose.R.apply(ray_directions_sensor)
 
     N = W*H
@@ -79,6 +78,9 @@ def raycast_scene(scene: list[open3d.geometry.TriangleMesh], camera: CameraModel
         # Interpolate
         colors[mask] = w_vals[:, None] * c0 + u_vals[:, None] * c1 + v_vals[:, None] * c2
 
+    # clip colors to [0, 1] (for numerical stability)
+    colors = np.clip(colors, 0.0, 1.0)
+
     # reshape to image dims
     colors = colors.reshape((H, W, 3))
     return colors
@@ -104,7 +106,7 @@ if __name__ == "__main__":
         height_px=1000,
     )
 
-    res = raycast_scene([cube, torus, sphere], rays)
+    res = simulate_capture([cube, torus, sphere], rays)
     # print(res)
     print(res.shape)
 
