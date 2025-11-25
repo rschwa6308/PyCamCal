@@ -33,3 +33,8 @@ def get_random_rotation(magnitude: float, degrees=False) -> R3D:
     axis /= np.linalg.norm(axis)
 
     return R3D.from_rotvec(axis * magnitude, degrees=degrees)
+
+
+def is_perfect_square(n: int):
+    root = int(np.sqrt(n))
+    return root**2 == n
