@@ -77,8 +77,13 @@ def generate_calibration_dataset(camera_model: CameraModel, num_images: int,  ra
 
     images = []
 
-    for i, camera_pose in enumerate(camera_poses):
-        image = simulate_capture(scene, camera_model, camera_pose)
+    for i, camera_pose in tqdm(enumerate(camera_poses), total=len(camera_poses), desc="Simulating camera captures"):
+        image = simulate_capture(
+            scene,
+            camera_model,
+            camera_pose,
+            rays_per_pixel=9    # anti-aliasing
+        )
         images.append(image)
     
     return images, camera_poses, scene

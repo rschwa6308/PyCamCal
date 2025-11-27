@@ -10,15 +10,20 @@ def detect_checkerboard_target(image: np.ndarray, nrows: int, ncols: int, color_
     Each returned point is referenced by its (x, y) location within the grid of inner corners, indexed from the top-left.
     """
 
+    # WARNING: 100% AI generated
+
+    image_8bit = (image * 255).astype(np.uint8)
+
     # Convert to grayscale
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
+    gray = cv2.cvtColor(image_8bit, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
 
     # OpenCV uses inner corners: (ncols-1, nrows-1)
     pattern_size = (ncols - 1, nrows - 1)
     
     # Find the checkerboard corners
-    ret, corners = cv2.findChessboardCorners(gray, pattern_size, cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE)
+    ret, corners = cv2.findChessboardCornersSB(gray, pattern_size, cv2.CALIB_CB_NORMALIZE_IMAGE + cv2.CALIB_CB_EXHAUSTIVE)
     if not ret:
+        print("NO CHECKERBOARD DETECTED")
         return {}  # Checkerboard not found
 
     # Refine corners to sub-pixel accuracy
