@@ -1,0 +1,6 @@
+numpy
+scipy
+matplotlib
+pandas
+open3d
+jax
