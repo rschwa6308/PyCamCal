@@ -30,7 +30,7 @@ class CameraModel:
 
         return CameraModel(res_xy, fx, fy, cx, cy, distortion)
 
-    def get_instrinsics_matrix(self):
+    def get_intrinsics_matrix(self):
         return np.array([
             [self.fx, 0.0,     self.cx],
             [0.0,     self.fy, self.cy],
@@ -51,7 +51,7 @@ class CameraModel:
     def cast_ray_from_pixel(self, pixel_coords: np.ndarray, normalized=True, include_distortion=True):
         "Cast ray(s) from the given (sub)pixel coordinate(s)"
 
-        K = self.get_instrinsics_matrix()
+        K = self.get_intrinsics_matrix()
         K_inv = np.linalg.inv(K)
 
         # construct homogenous vectors

@@ -18,7 +18,7 @@ def perform_raycast(scene: list[open3d.geometry.TriangleMesh], ray_origins: np.n
     for geom in scene:
         geom_new = open3d.t.geometry.TriangleMesh.from_legacy(geom)
         raycasting_scene.add_triangles(geom_new)
-    
+
     # perform the raycasting
     results = raycasting_scene.cast_rays(rays)
     return results
@@ -39,7 +39,7 @@ def get_subpixel_uniform_sampling_pattern(s: int) -> np.ndarray:
         for j in range(s):
             pattern[i, j, 0] = i * step + offset
             pattern[i, j, 1] = j * step + offset
-    
+
     return pattern
 
 
@@ -69,7 +69,7 @@ def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraMo
     subpixel_pattern = get_subpixel_uniform_sampling_pattern(s)                             # (s, s, 2)
     subpixel_pattern = subpixel_pattern.reshape(-1, 2)                                      # (s*s, 2)
 
-    subpixel_ray_sources = (pixel_tl_corners[:, None, :] + subpixel_pattern[None, :, :])    # (H*W, s*s, 2)
+    subpixel_ray_sources = pixel_tl_corners[:, None, :] + subpixel_pattern[None, :, :]      # (H*W, s*s, 2)
     subpixel_ray_sources = subpixel_ray_sources.reshape(-1, 2)                              # (H*W*s*s, 2)
 
     ray_directions_sensor = camera.cast_ray_from_pixel(subpixel_ray_sources)                # (H*W*s*s, 3)
@@ -77,7 +77,7 @@ def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraMo
 
     # compute ray-scene intersections
     results = perform_raycast(scene, ray_origins=camera_pose.t, ray_directions=ray_directions_world)
-    
+
     # parse results
     hit = results["t_hit"].numpy().reshape(-1) < np.inf
     geom_hit_ids = results["geometry_ids"].numpy().reshape(-1)
