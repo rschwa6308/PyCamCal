@@ -1,0 +1,87 @@
+from abc import ABC
+from dataclasses import dataclass
+from typing import Type
+import numpy as np
+
+from ..primitives.pose import Pose3D
+from ..camera_model.camera_model import CameraModel
+
+from ..optimization.optimization_quantity import OptimizationQuantity, Fixed, Unknown
+
+
+@dataclass
+class ImageCaptureObservations:
+    "Observations of known scene points from a single camera capture"
+
+    # sub-pixel locations of detected target features in the image, keyed by feature ID
+    feature_detections: dict[str, (float, float)]
+
+    # image data (optional, for viz purposes)
+    image: np.ndarray
+
+
+class CalibrationProblem:
+    "General camera calibration problem"
+
+    def __init__(self):
+        # camera models to be calibrated, keyed by camera ID
+        self.cameras: dict[str, CameraModel] = {}
+
+        # 3D location of feature points within the scene (e.g. calibration target points), keyed by feature ID
+        self.scene_points: dict[str, (float, float, float)] = {}
+
+        # camera poses per image to be solved for, keyed by (camera ID, image ID)
+        self.camera_poses: dict[(str, str), Pose3D] = {}
+
+        # image capture observations of scene points, keyed by (camera ID, image ID)
+        self.observations: dict[(str, str), ImageCaptureObservations] = {}
+
+    def add_camera(self, camera_id: str, camera_model: CameraModel):
+        self.cameras[camera_id] = camera_model
+
+    def add_known_scene_points(self, points: dict[str, (float, float, float)]):
+        for point_id, point in points.items():
+            if point_id in self.scene_points:
+                raise ValueError(f"An entry with ID {point_id} already exists within the scene points database")
+
+            self.scene_points[point_id] = Fixed(point)
+
+    def add_observations(self, camera_id: str, image_id: str, observations: ImageCaptureObservations, camera_pose: OptimizationQuantity[Pose3D] | None = None):
+        if camera_id not in self.cameras.keys():
+            raise ValueError(f"Unkown camera ID {camera_id}")
+
+        self.observations[(camera_id, image_id)] = observations
+
+        if camera_pose is None: # convenience default
+            camera_pose = Unknown(Pose3D.identity())
+
+        self.camera_poses[(camera_id, image_id)] = camera_pose
+
+    def collect_unknowns(self) -> list[Unknown]:
+        unknowns = []
+
+        # consistent ordering
+        camera_ids = sorted(self.cameras.keys())
+        pose_ids = sorted(self.camera_poses.keys())
+
+        # camera model unknowns
+        for camera_id in camera_ids:
+            unknowns.extend(self.cameras[camera_id].collect_unknowns())
+
+        # camera pose unknowns
+        for pose_id in pose_ids:
+            pose = self.camera_poses[pose_id]
+            if isinstance(pose, Unknown):
+                unknowns.append(pose)
+
+        # scene point unknowns
+        # TODO
+
+        return unknowns
+
+    def get_residuals(self) -> np.ndarray:
+        "Get vector of reprojection residuals. Supports auto-diff."
+        # TODO
+
+    def __repr__(self) -> str:
+        return f"CalibrationProblem(cameras={self.cameras}, scene_points={self.scene_points}, poses={self.camera_poses}, observations={self.observations})"

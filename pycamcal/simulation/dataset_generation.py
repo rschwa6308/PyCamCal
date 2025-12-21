@@ -47,7 +47,7 @@ def generate_calibration_dataset(camera_model: CameraModel, num_images: int,  ra
     target_center = checkerboard.get_center()
 
     # random positions from the front half of the room (with some margin away from the walls)
-    margin = 0.1
+    margin = 0.2
     camera_positions = np.random.uniform(
         low  = np.array([-room_width/2, -room_depth/2, 0.0        ]) + margin,
         high = np.array([+room_width/2,  0.0,          room_height]) - margin,
@@ -62,8 +62,9 @@ def generate_calibration_dataset(camera_model: CameraModel, num_images: int,  ra
 
         # small random pan/tilt
         fov_x, fov_y = camera_model.get_fov()
-        pan  = np.random.uniform(-fov_x/3, +fov_x/3)
-        tilt = np.random.uniform(-fov_y/3, +fov_y/3)
+        s = 0.30
+        pan  = np.random.uniform(-fov_x*s, +fov_x*s)
+        tilt = np.random.uniform(-fov_y*s, +fov_y*s)
         perturbation = R3D.from_euler("XY", [pan, tilt])
         cam_ori *= perturbation
 

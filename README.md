@@ -37,12 +37,11 @@ In addition to the simulated camera images, the dataset includes ground truth fo
 
 ## Algorithm Overview
 
-At its core, the calibration algorithm is an optimization problem where the free variables are the camera intrinsics/extrinsics, and the objective is to minimize the total reprojection error from the given point correspondances. For unsurveyed calibration, the algorithm performs the following steps:
+At its core, the calibration algorithm is an optimization problem where the free variables are the camera intrinsics/extrinsics, and the objective is to minimize the total reprojection error from the observed point correspondances. For unsurveyed calibration, the algorithm performs the following steps:
 
-1) Compute an initial guess for the intrinsics parameters (based on heuristics and/or user input)
-2) Initialize distortion parameters to zero
-3) Compute an initial guess for camera poses by solving the [PnP](https://en.wikipedia.org/wiki/Perspective-n-Point) problem for each image (given the above pinhole model)
-4) Run a non-linear least squares solver (Levenberg-Marquardt) to refine both camera parameters and poses in order to minimize the total reprojection errors
+1) Compute an initial guess for the intrinsics/distortion parameters (based on heuristics and/or user input)
+2) Compute an initial guess for camera poses by solving the [PnP](https://en.wikipedia.org/wiki/Perspective-n-Point) problem for each image (using the initial camera model)
+3) Run a non-linear least squares solver (Levenberg-Marquardt) to simultaneously refine both camera parameters and poses in order to minimize the total reprojection errors
 
 Symbolically:
  - Let $\pi_{K, \theta}: \mathbb{R}^3 \to \mathbb{R}^2$ be the camera projection function defined by intrinsics parameters $K$ and distortion parameters $\theta$
@@ -54,4 +53,13 @@ The objective is thus
 
 $$\min_{K, \theta, R_i, t_i} \sum_{i,j} \mathrm{DIFF}( x_{ij}, x_{ij}' )^2$$
 
-where $x_{ij}' = \pi_{K, \theta}([R_i \mid t_i]^{-1} X_j)$ is the hypothetical location of the calibration point reprojected into the image, and $\mathrm{DIFF}: (\mathbb{R}^2, \mathbb{R}^2) \to \mathbb{R}^+$ is a measure of error between the reprojected point and the observed point. Typically, $\mathrm{DIFF}(x, x') = \lVert x - x' \rVert$ is used.
+where
+
+$$x_{ij}' = \pi_{K, \theta}([R_i \mid t_i]^{-1} X_j)$$
+
+is the hypothetical location of the calibration point reprojected into the image, and $\mathrm{DIFF}: (\mathbb{R}^2, \mathbb{R}^2) \to \mathbb{R}$ is a measure of error between the reprojected point and the observed point. Typically, $\mathrm{DIFF}(x, x') = \lVert x - x' \rVert$ is used.
+
+
+## User Guide
+
+To get started, see [`examples/surveyed_calibration.ipynb`](./examples/surveyed_calibration.ipynb) and [`examples/unsurveyed_calibration.ipynb`](./examples/unsurveyed_calibration.ipynb).

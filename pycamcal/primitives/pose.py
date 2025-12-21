@@ -13,3 +13,10 @@ class Pose3D:
         T[:3, :3] = self.R.as_matrix()
         T[:3,  3] = self.t
         return T
+
+    @staticmethod
+    def identity() -> "Pose3D":
+        return Pose3D(
+            np.array([0.0, 0.0, 0.0]),
+            R3D.identity()
+        )

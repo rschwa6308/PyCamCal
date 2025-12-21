@@ -1,6 +1,8 @@
 from typing import Literal
 import numpy as np
 
+from ..optimization.optimization_quantity import Unknown
+
 from .distortion_model import DistortionModel
 
 
@@ -14,7 +16,7 @@ class CameraModel:
         self.cy = cy
 
         self.distortion = distortion
-    
+
     @staticmethod
     def from_fov(res_xy, fov_xy, distortion: DistortionModel=None, degrees=True) -> "CameraModel":
         if degrees:
@@ -36,7 +38,7 @@ class CameraModel:
             [0.0,     self.fy, self.cy],
             [0.0,      0.0,    1.0    ]
         ])
-    
+
     def get_fov(self, degrees=False) -> tuple[float, float]:
         width, height = self.res_xy
         fov_x = 2 * np.arctan((width / 2) / self.fx)
@@ -75,3 +77,15 @@ class CameraModel:
             rays /= np.linalg.norm(rays, axis=1, keepdims=True)
 
         return rays
+
+    def collect_unknowns(self) -> list[Unknown]:
+        # intrinsics params
+        unknowns = [
+            param for param in (self.fx, self.fy, self.cx, self.cy)
+            if isinstance(param, Unknown)
+        ]
+
+        # distortion params
+        unknowns.extend(self.distortion.collect_unknowns())
+
+        return unknowns

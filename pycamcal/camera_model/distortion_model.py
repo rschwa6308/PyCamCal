@@ -14,6 +14,7 @@ from tqdm import tqdm
 
 from ..primitives.math_helpers import cartesian_product
 from ..optimization.batched import gauss_newton_batched
+from ..optimization.optimization_quantity import Unknown
 
 
 class DistortionModel(ABC):
@@ -27,6 +28,17 @@ class DistortionModel(ABC):
 
         raise NotImplementedError()
 
+    def get_params(self) -> list:
+        "Get a flat list of all params associated with this distortion model"
+        raise NotImplementedError()
+
+    def collect_unknowns(self):
+        unknowns = [
+            param for param in self.get_params()
+            if isinstance(param, Unknown)
+        ]
+
+        return unknowns
 
 class RadialTangentialDistortion(DistortionModel):
     k1: float
@@ -117,3 +129,6 @@ class RadialTangentialDistortion(DistortionModel):
 
         has_solution = np.any(np.isreal(roots) & (roots > 0))
         return has_solution
+
+    def get_params(self):
+        return (self.k1, self.k2, self.k3, self.p1, self.p2)
