@@ -24,7 +24,7 @@ def detect_checkerboard_target(image: np.ndarray, nrows: int, ncols: int, color_
     ret, corners = cv2.findChessboardCornersSB(gray, pattern_size, cv2.CALIB_CB_NORMALIZE_IMAGE + cv2.CALIB_CB_EXHAUSTIVE)
     if not ret:
         print("NO CHECKERBOARD DETECTED")
-        return {}  # Checkerboard not found
+        return False, {}  # checkerboard not found
 
     # Refine corners to sub-pixel accuracy
     corners = cv2.cornerSubPix(
@@ -32,11 +32,18 @@ def detect_checkerboard_target(image: np.ndarray, nrows: int, ncols: int, color_
         criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
     )
 
+    # remove extra dimension
+    corners = corners.squeeze()
+
+    # reverse ordering (want: tl -> br)
+    corners = corners[::-1]
+
     # Map to (row, col) grid
     corner_dict = {}
-    for i in range(pattern_size[1]):  # rows
-        for j in range(pattern_size[0]):  # cols
+    for i in range(pattern_size[1]):
+        for j in range(pattern_size[0]):
             idx = i * pattern_size[0] + j
-            corner_dict[(i, j)] = corners[idx, 0]  # corners[i,j] is (x, y)
+            key = f"CB-{i}-{j}"
+            corner_dict[key] = corners[idx]
     
-    return corner_dict
+    return True, corner_dict
