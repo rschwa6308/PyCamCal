@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Type
 import numpy as np
 
-from ..primitives.pose import Pose3D
+from ..primitives.pose import Pose3D, R3D
 from ..camera_model.camera_model import CameraModel
 
 from ..optimization.optimization_quantity import OptimizationQuantity, Fixed, Unknown
@@ -15,9 +15,6 @@ class ImageCaptureObservations:
 
     # sub-pixel locations of detected target features in the image, keyed by feature ID
     feature_detections: dict[str, (float, float)]
-
-    # image data (optional, for viz purposes)
-    image: np.ndarray
 
 
 class CalibrationProblem:
@@ -52,7 +49,8 @@ class CalibrationProblem:
 
         self.observations[(camera_id, image_id)] = observations
 
-        if camera_pose is None: # convenience default
+        if camera_pose is None:
+            # convenience default
             camera_pose = Unknown(Pose3D.identity())
 
         self.camera_poses[(camera_id, image_id)] = camera_pose
@@ -78,10 +76,47 @@ class CalibrationProblem:
         # TODO
 
         return unknowns
+    
 
     def get_residuals(self) -> np.ndarray:
         "Get vector of reprojection residuals. Supports auto-diff."
-        # TODO
+
+        def diff(uv_detect, uv_reproj):
+            print(f"diff(detect={uv_detect}, reproj={uv_reproj})")
+            return np.linalg.norm(uv_detect - uv_reproj, axis=-1)
+        
+        features_detected, featured_reprojected = self.get_reprojections()
+
+        residuals = diff(features_detected, featured_reprojected)
+        return residuals
+    
+
+    def get_reprojections(self) -> np.ndarray:
+        "Get matching arrays of uv_detected, uv_reprojected"
+
+        features_detected = []
+        features_reprojected = []
+
+        # iterate over image captures
+        for (cam_id, img_id), obs in self.observations.items():
+            cam = self.cameras[cam_id]
+            cam_pose = self.camera_poses[(cam_id, img_id)].value()
+
+            # iterate over observed features
+            for feat_id, feat_uv_detect in obs.feature_detections.items():
+                # transform feature point into camera frame
+                feat_pos_world = self.scene_points[feat_id].value()
+                feat_pos_camera = cam_pose.inv().apply(feat_pos_world)
+                # print(feat_pos_world, "=>", feat_pos_camera)
+
+                # project into image
+                feat_uv_reproj = cam.project_into_image(feat_pos_camera)[0]
+
+                # compute reprojection error
+                features_detected.append(feat_uv_detect)
+                features_reprojected.append(feat_uv_reproj)
+
+        return np.array(features_detected), np.array(features_reprojected)
 
     def __repr__(self) -> str:
         return f"CalibrationProblem(cameras={self.cameras}, scene_points={self.scene_points}, poses={self.camera_poses}, observations={self.observations})"

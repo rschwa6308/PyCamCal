@@ -1,14 +1,14 @@
 from typing import Literal
-import numpy as np
+import jax.numpy as jnp
 
-from ..optimization.optimization_quantity import Unknown
+from ..optimization.optimization_quantity import VALUE, Unknown
 
 from .distortion_model import DistortionModel
 
 
 class CameraModel:
     def __init__(self, res_xy: tuple[int, int], fx, fy, cx, cy, distortion: DistortionModel):
-        self.res_xy = np.array(res_xy, dtype=int)
+        self.res_xy = jnp.array(res_xy, dtype=int)
 
         self.fx = fx
         self.fy = fy
@@ -20,50 +20,64 @@ class CameraModel:
     @staticmethod
     def from_fov(res_xy, fov_xy, distortion: DistortionModel=None, degrees=True) -> "CameraModel":
         if degrees:
-            fov_x, fov_y = np.deg2rad(fov_xy[0]), np.deg2rad(fov_xy[1])
+            fov_x, fov_y = jnp.deg2rad(fov_xy[0]), jnp.deg2rad(fov_xy[1])
         else:
             fov_x, fov_y = fov_xy
 
         width, height = res_xy
-        fx = (width / 2) / np.tan(fov_x / 2)
-        fy = (height / 2) / np.tan(fov_y / 2)
+        fx = (width / 2) / jnp.tan(fov_x / 2)
+        fy = (height / 2) / jnp.tan(fov_y / 2)
         cx = width / 2
         cy = height / 2
 
         return CameraModel(res_xy, fx, fy, cx, cy, distortion)
 
     def get_intrinsics_matrix(self):
-        return np.array([
+        return jnp.array([
             [self.fx, 0.0,     self.cx],
             [0.0,     self.fy, self.cy],
             [0.0,      0.0,    1.0    ]
         ])
+    
+    def get_focals(self):
+        return jnp.array([VALUE(self.fx), VALUE(self.fy)])
+    
+    def get_centers(self):
+        return jnp.array([VALUE(self.cx), VALUE(self.cy)])
 
     def get_fov(self, degrees=False) -> tuple[float, float]:
         width, height = self.res_xy
-        fov_x = 2 * np.arctan((width / 2) / self.fx)
-        fov_y = 2 * np.arctan((height / 2) / self.fy)
+        fov_x = 2 * jnp.arctan((width / 2) / self.fx)
+        fov_y = 2 * jnp.arctan((height / 2) / self.fy)
 
         if degrees:
-            fov_x = np.rad2deg(fov_x)
-            fov_y = np.rad2deg(fov_y)
+            fov_x = jnp.rad2deg(fov_x)
+            fov_y = jnp.rad2deg(fov_y)
 
         return fov_x, fov_y
+    
+    def project_into_image(self, points: jnp.ndarray, include_distortion=True):
+        "Project world-space point(s) into the image frame, returning sub-pixel sensor intersection coordinates"
 
-    def cast_ray_from_pixel(self, pixel_coords: np.ndarray, normalized=True, include_distortion=True):
+        # normalize points by intersecting incoming rays with z=1 plane
+        points_external = points[...,:2] / points[...,2:3]
+
+        # apply lens distortion
+        if self.distortion is not None and include_distortion:
+            points_internal = self.distortion.distort(points_external)
+        else:
+            points_internal = points_external
+
+        # apply pinhole projection
+        pixel_coords = points_internal * self.get_focals() + self.get_centers()
+
+        return pixel_coords
+
+    def cast_ray_from_pixel(self, pixel_coords: jnp.ndarray, normalized=True, include_distortion=True):
         "Cast ray(s) from the given (sub)pixel coordinate(s)"
 
-        K = self.get_intrinsics_matrix()
-        K_inv = np.linalg.inv(K)
-
-        # construct homogenous vectors
-        pixel_coords_homog = np.hstack([pixel_coords, np.ones((len(pixel_coords), 1))])
-
         # invert pinhole projection
-        points_internal = (K_inv @ pixel_coords_homog.T).T
-
-        # intersect with z=1 plane
-        points_internal = points_internal[:,:2] / points_internal[:,2:3]
+        points_internal = (pixel_coords - self.get_centers()) / self.get_focals()
 
         # invert lens distortion
         if self.distortion is not None and include_distortion:
@@ -71,10 +85,10 @@ class CameraModel:
         else:
             points_external = points_internal
 
-        rays = np.hstack([points_external, np.ones((len(points_external), 1))])
+        rays = jnp.hstack([points_external, jnp.ones((len(points_external), 1))])
 
         if normalized:
-            rays /= np.linalg.norm(rays, axis=1, keepdims=True)
+            rays /= jnp.linalg.norm(rays, axis=1, keepdims=True)
 
         return rays
 

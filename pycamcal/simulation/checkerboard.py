@@ -3,7 +3,9 @@ import open3d
 
 
 def create_checkerboard_mesh(num_rows, num_cols, square_size, color_a=[0,0,0], color_b=[1,1,1]) -> open3d.geometry.TriangleMesh:
-    "Create a rectangular mesh with checkerboard coloring, in the xy-plane, with bottom-left corner at (0,0,0)"
+    """
+    Create a rectangular mesh with checkerboard coloring, in the (+x, +y) quadrant of the z=0 plane.
+    """
 
     vertices = []
     triangles = []

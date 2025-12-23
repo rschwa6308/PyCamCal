@@ -20,3 +20,11 @@ class Pose3D:
             np.array([0.0, 0.0, 0.0]),
             R3D.identity()
         )
+
+    def inv(self) -> "Pose3D":
+        R_inv = self.R.inv()
+        t_inv = -R_inv.apply(self.t)
+        return Pose3D(t_inv, R_inv)
+
+    def apply(self, v: np.ndarray) -> np.ndarray:
+        return self.R.apply(v) + self.t
