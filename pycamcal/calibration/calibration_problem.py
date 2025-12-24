@@ -1,7 +1,7 @@
 from abc import ABC
 from dataclasses import dataclass
 from typing import Type
-import numpy as np
+import jax.numpy as jnp
 
 from ..primitives.pose import Pose3D, R3D
 from ..camera_model.camera_model import CameraModel
@@ -76,22 +76,19 @@ class CalibrationProblem:
         # TODO
 
         return unknowns
-    
 
-    def get_residuals(self) -> np.ndarray:
+    def get_residuals(self) -> jnp.ndarray:
         "Get vector of reprojection residuals. Supports auto-diff."
 
         def diff(uv_detect, uv_reproj):
-            print(f"diff(detect={uv_detect}, reproj={uv_reproj})")
-            return np.linalg.norm(uv_detect - uv_reproj, axis=-1)
+            return jnp.linalg.norm(uv_detect - uv_reproj, axis=-1)
         
         features_detected, featured_reprojected = self.get_reprojections()
 
         residuals = diff(features_detected, featured_reprojected)
         return residuals
-    
 
-    def get_reprojections(self) -> np.ndarray:
+    def get_reprojections(self) -> jnp.ndarray:
         "Get matching arrays of uv_detected, uv_reprojected"
 
         features_detected = []
@@ -116,7 +113,7 @@ class CalibrationProblem:
                 features_detected.append(feat_uv_detect)
                 features_reprojected.append(feat_uv_reproj)
 
-        return np.array(features_detected), np.array(features_reprojected)
+        return jnp.array(features_detected), jnp.array(features_reprojected)
 
-    def __repr__(self) -> str:
-        return f"CalibrationProblem(cameras={self.cameras}, scene_points={self.scene_points}, poses={self.camera_poses}, observations={self.observations})"
+    def __str__(self) -> str:
+        return f"CalibrationProblem(\n  cameras = {self.cameras},\n  scene_points = {self.scene_points},\n  poses = {self.camera_poses},\n  observations = {self.observations}\n)"

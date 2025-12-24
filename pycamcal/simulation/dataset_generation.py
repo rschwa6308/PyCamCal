@@ -33,13 +33,12 @@ def generate_calibration_dataset(camera_model: CameraModel, num_images: int,  ra
     cornell_box = create_cornell_box(width=room_width, height=room_height, depth=room_depth)
 
     # create calibration target
-    checkerboard, target_points = create_checkerboard_mesh(num_rows=7, num_cols=10, square_size=0.25)
+    checkerboard = create_checkerboard_mesh(num_rows=7, num_cols=10, square_size=0.25)
     target_pose = Pose3D(
         -checkerboard.get_center() + [0, 3, 1],
         R3D.from_euler("x", 90, degrees=True)
     )
     checkerboard.transform(target_pose.as_transformation_matrix())
-    target_points = target_pose.apply(target_points)
 
     scene = [*cornell_box.values(), checkerboard]
 
@@ -98,8 +97,8 @@ def generate_calibration_dataset(camera_model: CameraModel, num_images: int,  ra
             "square_size": 0.25
         },
         "pose": {
-            "position": list(target_pose.t),
-            "orientation": list(target_pose.R.as_quat())
+            "position": target_pose.t.tolist(),
+            "orientation": target_pose.R.as_quat().tolist()
         }
     }
     

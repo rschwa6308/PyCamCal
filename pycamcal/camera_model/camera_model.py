@@ -1,3 +1,4 @@
+import pprint
 from typing import Literal
 import jax.numpy as jnp
 
@@ -20,7 +21,7 @@ class CameraModel:
     @staticmethod
     def from_fov(res_xy, fov_xy, distortion: DistortionModel=None, degrees=True) -> "CameraModel":
         if degrees:
-            fov_x, fov_y = jnp.deg2rad(fov_xy[0]), jnp.deg2rad(fov_xy[1])
+            fov_x, fov_y = jnp.deg2rad(jnp.array(fov_xy))
         else:
             fov_x, fov_y = fov_xy
 
@@ -103,3 +104,14 @@ class CameraModel:
         unknowns.extend(self.distortion.collect_unknowns())
 
         return unknowns
+    
+    def to_dict(self) -> dict:
+        return {
+            "res_xy": self.res_xy.tolist(),
+            "fx": self.fx, "fy": self.fy,
+            "cx": self.cx, "cy": self.cy,
+            "distortion": self.distortion.to_dict()
+        }
+
+    def __str__(self):
+        return pprint.pformat(self.to_dict(), sort_dicts=False)

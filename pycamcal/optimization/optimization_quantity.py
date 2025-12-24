@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
+import copy
 
 T = TypeVar("T")
 
@@ -45,3 +46,34 @@ class Unknown(OptimizationQuantity[T]):
 def VALUE(x):
     return x.value() if isinstance(x, OptimizationQuantity) else x
 
+
+def RESOLVE_VALUES(obj):
+    """
+    Recursively make a copy of `obj` replacing any Unknown or Fixed
+    instances with their current numerical values.
+    """
+
+    # If obj is an Unknown or Fixed, return its value
+    if isinstance(obj, OptimizationQuantity):
+        return obj.value()
+
+    # If obj is a dict, resolve each key/value
+    if isinstance(obj, dict):
+        return {k: RESOLVE_VALUES(v) for k, v in obj.items()}
+
+    # If obj is a list or tuple, resolve each element
+    if isinstance(obj, list):
+        return [RESOLVE_VALUES(x) for x in obj]
+    if isinstance(obj, tuple):
+        return tuple(RESOLVE_VALUES(x) for x in obj)
+
+    # If obj is an object, resolve each attribute
+    if hasattr(obj, "__dict__"):
+        # Make a shallow copy first
+        obj_copy = copy.copy(obj)
+        for attr, val in vars(obj_copy).items():
+            setattr(obj_copy, attr, RESOLVE_VALUES(val))
+        return obj_copy
+
+    # Fallback for other types
+    return copy.deepcopy(obj)

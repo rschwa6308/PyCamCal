@@ -28,19 +28,29 @@ class DistortionModel(ABC):
 
         raise NotImplementedError()
 
-    def get_params(self) -> list:
-        "Get a flat list of all params associated with this distortion model"
-        raise NotImplementedError()
-
     def collect_unknowns(self):
+        print(type(self.k1))
         unknowns = [
-            param for param in self.get_params()
+            param for param in self.get_params().values()
             if isinstance(param, Unknown)
         ]
+        print(unknowns)
 
         return unknowns
 
+    def get_params(self) -> dict:
+        "Get a dictionary of all params associated with this distortion model"
+        raise NotImplementedError()
+
+    def to_dict(self):
+        return {
+            "model_type": self.MODEL_TYPE,
+            "params": self.get_params()
+        }
+
 class RadialTangentialDistortion(DistortionModel):
+    MODEL_TYPE = "RadialTangential"
+
     k1: float
     k2: float
     k3: float
@@ -131,4 +141,10 @@ class RadialTangentialDistortion(DistortionModel):
         return has_solution
 
     def get_params(self):
-        return (self.k1, self.k2, self.k3, self.p1, self.p2)
+        return {
+            "k1": self.k1,
+            "k2": self.k2,
+            "k3": self.k3,
+            "p1": self.p1,
+            "p2": self.p2
+        }

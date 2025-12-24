@@ -1,23 +1,43 @@
 from dataclasses import dataclass
 
-import numpy as np
-from scipy.spatial.transform import Rotation as R3D
+import jax.numpy as jnp
+from jax import tree_util
 
-@dataclass
+from .rotation import Rotation3D as R3D
+
+@tree_util.register_pytree_node_class
 class Pose3D:
-    t: np.ndarray
-    R: R3D
+    """
+    JAX-friendly representation of an element of SE(3).
+    """
 
-    def as_transformation_matrix(self) -> np.ndarray:
-        T = np.eye(4, dtype=np.float64)
-        T[:3, :3] = self.R.as_matrix()
-        T[:3,  3] = self.t
+    def __init__(self, t: jnp.array, R: R3D):
+        self.t = jnp.array(t)
+        self.R = R
+    
+    # ---------------- PyTree ----------------
+
+    def tree_flatten(self):
+        return (self.t, self.R), None
+
+    @classmethod
+    def tree_unflatten(cls, aux, children):
+        (t, R) = children
+        return cls(t, R)
+    
+    # ---------------- Public API ----------------
+
+    def as_transformation_matrix(self) -> jnp.ndarray:
+        T = jnp.vstack([
+            jnp.concatenate([self.R.as_matrix(), self.t[:, None]], axis=1),
+            jnp.array([[0., 0., 0., 1.]], dtype=jnp.float64)
+        ])
         return T
 
     @staticmethod
     def identity() -> "Pose3D":
         return Pose3D(
-            np.array([0.0, 0.0, 0.0]),
+            jnp.array([0.0, 0.0, 0.0]),
             R3D.identity()
         )
 
@@ -26,5 +46,6 @@ class Pose3D:
         t_inv = -R_inv.apply(self.t)
         return Pose3D(t_inv, R_inv)
 
-    def apply(self, v: np.ndarray) -> np.ndarray:
+    def apply(self, v: jnp.ndarray) -> jnp.ndarray:
+        v = jnp.array(v)
         return self.R.apply(v) + self.t
