@@ -58,7 +58,7 @@ class CameraModel:
         return fov_x, fov_y
     
     def project_into_image(self, points: jnp.ndarray, include_distortion=True):
-        "Project world-space point(s) into the image frame, returning sub-pixel sensor intersection coordinates"
+        "Project external-space point(s) into the image frame, returning sub-pixel sensor intersection coordinates"
 
         # normalize points by intersecting incoming rays with z=1 plane
         points_external = points[...,:2] / points[...,2:3]

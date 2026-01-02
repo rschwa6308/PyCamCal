@@ -1,6 +1,6 @@
 import numpy as np
-from scipy.spatial.transform import Rotation as R3D
 
+from .rotation import Rotation3D as R3D
 
 def get_lookat_orientation(cam_pos, target, up) -> R3D:
     """
@@ -32,7 +32,10 @@ def get_random_rotation(magnitude: float, degrees=False) -> R3D:
     axis = np.random.randn(3)
     axis /= np.linalg.norm(axis)
 
-    return R3D.from_rotvec(axis * magnitude, degrees=degrees)
+    if degrees:
+        magnitude = np.deg2rad(magnitude)
+
+    return R3D.from_rotvec(axis * magnitude)
 
 
 def is_perfect_square(n: int):
@@ -50,7 +53,6 @@ def cartesian_product(*arrays: np.ndarray, keepdims: bool = False) -> np.ndarray
         return arr
     else:
         return arr.reshape(-1, la)
-
 
 
 def is_polynomial_invertible_on_interval(coeffs, a, b, tol=1e-12):

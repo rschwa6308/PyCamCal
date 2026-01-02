@@ -12,7 +12,7 @@ class Pose3D:
     """
 
     def __init__(self, t: jnp.array, R: R3D):
-        self.t = jnp.array(t)
+        self.t = jnp.array(t).reshape((3,))
         self.R = R
     
     # ---------------- PyTree ----------------

@@ -12,23 +12,19 @@ def skew(v: jnp.ndarray) -> jnp.ndarray:
 
 
 def apply_rotvec(r: jnp.ndarray, p: jnp.ndarray) -> jnp.ndarray:
-    theta = jnp.linalg.norm(r)
+    theta = jnp.linalg.norm(r, axis=-1, keepdims=True)
 
-    def small():
-        # First-order Taylor
-        return p + jnp.cross(r, p)
+    small = p + jnp.cross(r, p)
 
-    def general():
-        k = r / theta
-        ct = jnp.cos(theta)
-        st = jnp.sin(theta)
-        return (
-            p * ct
-            + jnp.cross(k, p) * st
-            + k * jnp.dot(k, p) * (1.0 - ct)
-        )
+    k = r / theta
+    ct = jnp.cos(theta)
+    st = jnp.sin(theta)
 
-    return jnp.where(theta < 1e-8, small(), general())
+    # For dot, keepdims to allow broadcasting
+    k_dot_p = jnp.sum(k * p, axis=-1, keepdims=True)
+    general = p * ct + jnp.cross(k, p) * st + k * k_dot_p * (1.0 - ct)
+
+    return jnp.where(theta < 1e-8, small, general)
 
 
 @tree_util.register_pytree_node_class
@@ -52,7 +48,7 @@ class Rotation3D:
     # ---------------- Constructors ----------------
 
     def __init__(self, r):
-        self.r = jnp.array(r)   # (3,) rotation vector
+        self.r = jnp.array(r).reshape((3,))   # (3,) rotation vector
 
     @staticmethod
     def identity() -> "Rotation3D":
@@ -177,11 +173,11 @@ class Rotation3D:
         theta = jnp.linalg.norm(r)
 
         def small():
-            return jnp.eye(3) + _skew(r)
+            return jnp.eye(3) + skew(r)
 
         def general():
             k = r / theta
-            K = _skew(k)
+            K = skew(k)
             return (
                 jnp.eye(3)
                 + jnp.sin(theta) * K
