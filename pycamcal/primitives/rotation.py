@@ -131,17 +131,18 @@ class Rotation3D:
 
     def inv(self) -> "Rotation3D":
         return Rotation3D(-self.r)
+    
+    def magnitude(self) -> float:
+        """Get the magnitude of this rotation in radians"""
+        return jnp.linalg.norm(self.r)
 
-    # def compose(self, other: "Rotation3D") -> "Rotation3D":
-    #     """
-    #     Composition: self ∘ other
-    #     (apply other, then self)
-
-    #     Uses first-order BCH (sufficient for optimization).
-    #     """
-    #     r1 = self.r
-    #     r2 = other.r
-    #     return Rotation3D(r1 + r2)
+    def __mul__(self, other: "Rotation3D") -> "Rotation3D":
+        """
+        Composition: self ∘ other
+        (apply `other` first, then `self`)
+        """
+        R = self.as_matrix() @ other.as_matrix()
+        return Rotation3D.from_matrix(R)
 
     # ---------------- Conversions ----------------
 
