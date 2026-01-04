@@ -17,7 +17,7 @@ A minimum of n=4 points are required to uniquely determine a solution. However, 
 
 The following table describes the general solution set for n = 1 through n = 4:
 
-| Number of points ($n \in \mathbb{N}$) | PnP solution set ($\text{camera pose} \in SE(3)$)                                                                                                                                                                                                                              |
+| Number of points ($n \in \mathbb{N}$) | PnP solution set (camera pose $\in SE(3)$)                                                                                                                                                                                                                              |
 |---------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 1                                     | **Position**: completely unconstrained<br>**Orientation**: constrained to a 1D subspace of $SO(3)$ for a given position (rotation about the bearing ray)                                                                                                                        |
 | 2                                     | **Position**: constrained to a finite 2D surface created by rotating a limaçon-type curve about the axis connecting the 2 points<br>**Orientation**: uniquely determined for a given position                                                                                          |
@@ -29,14 +29,14 @@ Note: The above table assumes that the camera chirality constraint (i.e. the req
 
 ## Algebraic Solution (P3P)
 
-The algebraic solution to the P3P problem is a classical derivation, typically attributed to Grunert (1841). We present the full derivation here, with the help of the `sympy` computer algebra system for most of the heavy lifting.
+The algebraic solution to the P3P problem is a classical derivation, typically attributed to Grunert (1841). We present the full derivation here, with the help of the `sympy` computer algebra system for most of the heavy lifting later on.
 
 ### Notation
 
  - Let $X_1, X_2, X_3 \in \mathbb{R}^3$ be the world-space points
  - Let $x_1, x_2, x_3 \in \mathbb{R}^2$ be the image-space observations
  - Let $\pi: \mathbb{R}^3 \to \mathbb{R}^2$ be the camera projection function
- - Let $T = [R \mid t] \in SE(3)$ be the 6-DOF pose of the camera in world-space
+ - Let $[R \mid t] \in SE(3)$ be the 6-DOF pose of the camera in world-space
 
 The P3P problem is to find $T = [R \mid t]$ such that:
 
@@ -137,9 +137,10 @@ quartic_u = sp.resultant(eq1, eq2, v)
 
 # Print out the expressions for the coefficients
 poly = sp.Poly(quartic_u, u)
+assert(poly.degree() == 4)
 
 for i, c in enumerate(poly.coeffs()):
-    print(f"A{poly.degree()-i} = {coeffs[i]}")
+    print(f"A{poly.degree()-i} = {poly.coeffs()[i]}")
 ```
 
 This gives the following coefficients for the quartic polynomial $q(u) = A_4 u^4 + A_3 u^3 + A_2 u^2 + A_1 u + A_0$
