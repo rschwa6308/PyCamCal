@@ -5,7 +5,7 @@ from ..primitives import Pose3D
 from ..camera_model import CameraModel
 from ..primitives.math_helpers import is_perfect_square
 
-from .materials import lookup_material_color
+from .materials import *
 
 # triangle "color" value
 MIRROR_COLOR_CODE = [1.0, 0.0, 1.0]     # magenta
@@ -48,6 +48,86 @@ def get_subpixel_uniform_sampling_pattern(s: int) -> np.ndarray:
     return pattern
 
 
+def reflect_off_surface(d, n):
+    """
+    Reflect ray(s) with direction `d` off surface with normal(s) `n`.
+    
+    Both d and n can be shape (..., 3) and broadcasting is supported.
+    Returns reflected vectors of same shape.
+    """
+    return d - 2 * np.sum(d * n, axis=-1, keepdims=True) * n
+
+
+
+def round(scene, ray_origins, ray_directions, use_triangle_material_ids=True):
+
+    n = len(ray_origins)
+    ray_colors      = np.full((n, 3), dtype=np.float32, fill_value=np.nan)
+    terminated_mask = np.full((n,  ), dtype=bool,       fill_value=False)
+
+    # compute ray-scene intersections
+    results = perform_raycast(scene, ray_origins, ray_directions)
+
+    # parse results
+    hit_range       = results["t_hit"].numpy().reshape(-1)                  # (N,)
+    geom_hit_ids    = results["geometry_ids"].numpy().reshape(-1)           # (N,)
+    tri_hit_ids     = results["primitive_ids"].numpy().reshape(-1)          # (N,)
+    tri_hit_normals = results["primitive_normals"].numpy().reshape(-1, 3)   # (N, 3)
+    uvs             = results["primitive_uvs"].numpy().reshape(-1, 2)       # (N, 2)
+
+    hit_mask = hit_range < np.inf
+    hit_points = ray_origins + ray_directions * hit_range[:,None]
+
+    terminated_mask[~hit_mask] = True
+
+    # lookup color of each ray hit point
+    for i, geom in enumerate(scene):
+        mask = hit_mask & (geom_hit_ids == i)
+        if not np.any(mask):
+            continue
+
+        mask_where = np.flatnonzero(mask)
+
+        tris = np.asarray(geom.triangles)
+        vcolors = np.asarray(geom.vertex_colors)
+        tri_mats = np.asarray(geom.triangle_material_ids)
+
+        tri_ids = tri_hit_ids[mask]
+
+        if use_triangle_material_ids:
+            mat_ids = tri_mats[tri_ids]
+
+            mask_mirror      = (mat_ids == MAT_MIRROR)
+            mask_transparent = (mat_ids == MAT_TRANSPARENT)
+            mask_terminal    = ~(mask_mirror | mask_transparent)
+
+            if np.any(mask_mirror):      print(f"Num mirror hits:      {np.count_nonzero(mask_mirror)}")
+            if np.any(mask_transparent): print(f"Num transparent hits: {np.count_nonzero(mask_transparent)}")
+
+            # handle simple (terminal/absorptive) materials
+            where_terminal = mask_where[mask_terminal]
+            ray_colors[where_terminal] = lookup_material_color(mat_ids[mask_terminal])
+            terminated_mask[where_terminal] = True
+
+            # handle transparent materials
+            pass    # TODO
+            where_transparent = mask_where[mask_transparent]
+            if np.any(mask_transparent): print(ray_origins[where_transparent][0])
+
+            # handle mirrors
+            where_mirror = mask_where[mask_mirror]
+            ray_directions[where_mirror] = reflect_off_surface(ray_directions[where_mirror], tri_hit_normals[where_mirror])
+
+        else:
+            raise NotImplementedError()
+
+    live_mask = ~terminated_mask
+    remaining_live_rays = [hit_points[live_mask], ray_directions[live_mask]]
+
+    return terminated_mask, ray_colors[terminated_mask], remaining_live_rays
+
+
+
 def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraModel, camera_pose: Pose3D, rays_per_pixel: int = 1, use_triangle_material_ids=True, use_vertex_colors=False) -> np.ndarray:
     """
     Perform a raycast image capture simulation of the given camera at the given position within a scene.
@@ -81,62 +161,45 @@ def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraMo
     subpixel_ray_sources = pixel_tl_corners[:, None, :] + subpixel_pattern[None, :, :]      # (H*W, s*s, 2)
     subpixel_ray_sources = subpixel_ray_sources.reshape(-1, 2)                              # (H*W*s*s, 2)
 
-    ray_directions_sensor = camera.cast_ray_from_pixel(subpixel_ray_sources)                # (H*W*s*s, 3)
-    ray_directions_world  = camera_pose.R.apply(ray_directions_sensor)                      # (H*W*s*s, 3)
+    N = len(subpixel_ray_sources)                                                           # N = H*W*s*s
 
-    # compute ray-scene intersections
-    results = perform_raycast(scene, ray_origins=camera_pose.t, ray_directions=ray_directions_world)
+    ray_origins_world = np.full((N, 3), fill_value=camera_pose.t)                           # (N, 3)
 
-    # parse results
-    hit = results["t_hit"].numpy().reshape(-1) < np.inf
-    geom_hit_ids = results["geometry_ids"].numpy().reshape(-1)
-    tri_hit_ids = results["primitive_ids"].numpy().reshape(-1)
-    uvs = results["primitive_uvs"].numpy().reshape(-1, 2)  # shape (N,2)
+    ray_directions_sensor = camera.cast_ray_from_pixel(subpixel_ray_sources)                # (N, 3)
+    ray_directions_world  = camera_pose.R.apply(ray_directions_sensor)                      # (N, 3)
+    ray_directions_world = np.array(ray_directions_world)
 
-    colors = np.full((len(subpixel_ray_sources), 3), dtype=np.float32, fill_value=np.nan)
+    # raycasting output products
+    final_ray_colors    = np.full((N, 3), dtype=np.float32, fill_value=np.nan)
+    rays_finalized_mask = np.full((N,  ), dtype=bool,       fill_value=False)
 
-    # lookup color of each ray hit point
-    for i, geom in enumerate(scene):
-        mask = hit & (geom_hit_ids == i)
-        if not np.any(mask):
-            continue
+    # iterate: initial raycast, first bounce, second bounce, ...
+    live_rays = [ray_origins_world, ray_directions_world]
+    round_count = 0
+    while not np.all(rays_finalized_mask):
+        print(f"Bounce depth: {round_count} | Rays in flight: {len(live_rays[0])}")
+        live_indices = np.where(~rays_finalized_mask)[0]
 
-        tris = np.asarray(geom.triangles)
-        vcolors = np.asarray(geom.vertex_colors)
-        tri_mats = np.asarray(geom.triangle_material_ids)
+        if round_count > 10: break
 
-        tri_ids = tri_hit_ids[mask]
+        terminated_mask, ray_colors, remaining_live_rays = round(scene, *live_rays, use_triangle_material_ids)
+        final_ray_colors[live_indices[terminated_mask]] = ray_colors
+        rays_finalized_mask[live_indices[terminated_mask]] = True
 
-        if use_triangle_material_ids:
-            mat_ids = tri_mats[tri_ids]
-            print(mat_ids)
-            colors[mask] = lookup_material_color(mat_ids)
-        
-        elif use_vertex_colors:
-            uv = uvs[mask]
+        live_rays = remaining_live_rays
 
-            # Compute barycentric weights
-            u_vals = uv[:, 0]
-            v_vals = uv[:, 1]
-            w_vals = 1.0 - u_vals - v_vals
+        # advance rays a very small amount before next round to avoid intersecting the same surface again
+        live_rays[0] += 1e-4 * live_rays[1]
 
-            # Triangle vertex indices
-            tri_indices = tris[tri_ids]  # shape (num_hits, 3)
-
-            # Vertex colors
-            c0 = vcolors[tri_indices[:, 0]]
-            c1 = vcolors[tri_indices[:, 1]]
-            c2 = vcolors[tri_indices[:, 2]]
-
-            # Interpolate
-            colors[mask] = w_vals[:, None] * c0 + u_vals[:, None] * c1 + v_vals[:, None] * c2
+        round_count += 1
+        print()
 
     # clip colors to [0, 1] (for numerical stability)
-    colors = np.clip(colors, 0.0, 1.0)
+    final_ray_colors = np.clip(final_ray_colors, 0.0, 1.0)
 
     # average color per-pixel
-    colors = colors.reshape(H, W, s*s, 3)
-    colors_avg = np.mean(colors, axis=2)        # TODO: better color-space averaging
+    final_ray_colors = final_ray_colors.reshape(H, W, s*s, 3)
+    colors_avg = np.mean(final_ray_colors, axis=2)        # TODO: better color-space averaging
 
     return colors_avg
 

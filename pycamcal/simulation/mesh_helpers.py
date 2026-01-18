@@ -2,6 +2,14 @@ import numpy as np
 import open3d
 
 
+
+def quad_to_tris(quad_verts: tuple[int, int, int, int]) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+    a, b, c, d = quad_verts
+
+    return (a, b, d), (c, d, b)
+
+
+
 def create_rectangle_mesh(width: float, length: float) -> open3d.geometry.TriangleMesh:
     w = width / 2.0
     l = length / 2.0

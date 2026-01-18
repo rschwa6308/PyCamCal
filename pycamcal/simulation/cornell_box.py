@@ -1,7 +1,7 @@
 import numpy as np
 import open3d
 
-from .geometry_helpers import quad_to_tris, create_planar_rectangle
+from .mesh_helpers import paint_uniform_material, quad_to_tris
 from .materials import *
 
 def create_cornell_box(width=4, depth=4, height=5, use_triangle_material_ids=True) -> dict[str, open3d.geometry.TriangleMesh]:

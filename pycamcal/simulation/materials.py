@@ -51,7 +51,11 @@ MAT_GRAY_DARK   = 10
 MAT_MIRROR      = 98
 MAT_TRANSPARENT = 99
 
+# ALL_MATERIALS = 
 
 def lookup_material_color(mat_ids: np.ndarray):
     return np.array(ALL_COLORS)[mat_ids]
 
+
+def lookup_material_is_terminal(mat_ids: np.ndarray):
+    return (mat_ids != MAT_MIRROR) & (mat_ids != MAT_TRANSPARENT)
