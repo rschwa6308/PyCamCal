@@ -99,29 +99,28 @@ class Rotation3D:
         - `angles`: (3,) radians
         """
 
+        angles = jnp.array(angles)
+
         if degrees:
             angles = jnp.deg2rad(angles)
 
-        def rot_x(a):
-            return jnp.array([a, 0.0, 0.0])
+        def axis_rotvec(axis: str, angle: float) -> jnp.ndarray:
+            if axis == "x":
+                return jnp.array([angle, 0.0, 0.0])
+            elif axis == "y":
+                return jnp.array([0.0, angle, 0.0])
+            elif axis == "z":
+                return jnp.array([0.0, 0.0, angle])
+            else:
+                raise ValueError(f"Invalid axis '{axis}'")
 
-        def rot_y(a):
-            return jnp.array([0.0, a, 0.0])
+        R = Rotation3D.identity()
 
-        def rot_z(a):
-            return jnp.array([0.0, 0.0, a])
-
-        axis_map = {
-            "x": rot_x,
-            "y": rot_y,
-            "z": rot_z,
-        }
-
-        r = jnp.zeros(3)
         for ax, ang in zip(seq, angles):
-            r = r + axis_map[ax](ang)
+            Ri = Rotation3D.from_rotvec(axis_rotvec(ax, ang))
+            R = R * Ri
 
-        return Rotation3D(r)
+        return R
 
     # ---------------- Public API ----------------
 
@@ -142,6 +141,9 @@ class Rotation3D:
     #     r1 = self.r
     #     r2 = other.r
     #     return Rotation3D(r1 + r2)
+
+    def __mul__(self, other: "Rotation3D"):
+        return Rotation3D.from_matrix(self.as_matrix() @ other.as_matrix())
 
     # ---------------- Conversions ----------------
 

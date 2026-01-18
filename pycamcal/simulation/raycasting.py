@@ -5,6 +5,11 @@ from ..primitives import Pose3D
 from ..camera_model import CameraModel
 from ..primitives.math_helpers import is_perfect_square
 
+from .materials import lookup_material_color
+
+# triangle "color" value
+MIRROR_COLOR_CODE = [1.0, 0.0, 1.0]     # magenta
+
 
 def perform_raycast(scene: list[open3d.geometry.TriangleMesh], ray_origins: np.ndarray, ray_directions: np.ndarray):
     N = max(len(ray_origins), len(ray_directions))
@@ -43,7 +48,7 @@ def get_subpixel_uniform_sampling_pattern(s: int) -> np.ndarray:
     return pattern
 
 
-def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraModel, camera_pose: Pose3D, rays_per_pixel: int = 1) -> np.ndarray:
+def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraModel, camera_pose: Pose3D, rays_per_pixel: int = 1, use_triangle_material_ids=True, use_vertex_colors=False) -> np.ndarray:
     """
     Perform a raycast image capture simulation of the given camera at the given position within a scene.
     Scene consists of colored meshes.
@@ -52,10 +57,14 @@ def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraMo
     """
 
     assert is_perfect_square(rays_per_pixel)
+    assert not (use_triangle_material_ids and use_vertex_colors)
 
-    # verify scene geoms all have color
+    # verify all scene geoms have necessary appearance information
     for geom in scene:
-        assert geom.has_vertex_colors()
+        if use_triangle_material_ids:
+            assert geom.has_triangle_material_ids()
+        if use_vertex_colors:
+            assert geom.has_vertex_colors()
 
     W, H = camera.res_xy
 
@@ -81,7 +90,7 @@ def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraMo
     # parse results
     hit = results["t_hit"].numpy().reshape(-1) < np.inf
     geom_hit_ids = results["geometry_ids"].numpy().reshape(-1)
-    triangle_ids = results["primitive_ids"].numpy().reshape(-1)
+    tri_hit_ids = results["primitive_ids"].numpy().reshape(-1)
     uvs = results["primitive_uvs"].numpy().reshape(-1, 2)  # shape (N,2)
 
     colors = np.full((len(subpixel_ray_sources), 3), dtype=np.float32, fill_value=np.nan)
@@ -94,25 +103,33 @@ def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraMo
 
         tris = np.asarray(geom.triangles)
         vcolors = np.asarray(geom.vertex_colors)
+        tri_mats = np.asarray(geom.triangle_material_ids)
 
-        prim_ids_hit = triangle_ids[mask]
-        uv = uvs[mask]
+        tri_ids = tri_hit_ids[mask]
 
-        # Compute barycentric weights
-        u_vals = uv[:, 0]
-        v_vals = uv[:, 1]
-        w_vals = 1.0 - u_vals - v_vals
+        if use_triangle_material_ids:
+            mat_ids = tri_mats[tri_ids]
+            print(mat_ids)
+            colors[mask] = lookup_material_color(mat_ids)
+        
+        elif use_vertex_colors:
+            uv = uvs[mask]
 
-        # Triangle vertex indices
-        tri_indices = tris[prim_ids_hit]  # shape (num_hits, 3)
+            # Compute barycentric weights
+            u_vals = uv[:, 0]
+            v_vals = uv[:, 1]
+            w_vals = 1.0 - u_vals - v_vals
 
-        # Vertex colors
-        c0 = vcolors[tri_indices[:, 0]]
-        c1 = vcolors[tri_indices[:, 1]]
-        c2 = vcolors[tri_indices[:, 2]]
+            # Triangle vertex indices
+            tri_indices = tris[tri_ids]  # shape (num_hits, 3)
 
-        # Interpolate
-        colors[mask] = w_vals[:, None] * c0 + u_vals[:, None] * c1 + v_vals[:, None] * c2
+            # Vertex colors
+            c0 = vcolors[tri_indices[:, 0]]
+            c1 = vcolors[tri_indices[:, 1]]
+            c2 = vcolors[tri_indices[:, 2]]
+
+            # Interpolate
+            colors[mask] = w_vals[:, None] * c0 + u_vals[:, None] * c1 + v_vals[:, None] * c2
 
     # clip colors to [0, 1] (for numerical stability)
     colors = np.clip(colors, 0.0, 1.0)

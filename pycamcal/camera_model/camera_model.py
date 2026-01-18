@@ -110,7 +110,7 @@ class CameraModel:
             "res_xy": self.res_xy.tolist(),
             "fx": self.fx, "fy": self.fy,
             "cx": self.cx, "cy": self.cy,
-            "distortion": self.distortion.to_dict()
+            "distortion": self.distortion.to_dict() if self.distortion else None
         }
 
     def __str__(self):
