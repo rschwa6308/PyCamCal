@@ -59,7 +59,8 @@ def reflect_off_surface(d, n):
 
 
 
-def round(scene, ray_origins, ray_directions, use_triangle_material_ids=True):
+def _round(scene, ray_origins, ray_directions, use_triangle_material_ids=True, verbose=False):
+    "Perform one 'round' of raycasting, returning which rays are terminated and which are still live"
 
     n = len(ray_origins)
     ray_colors      = np.full((n, 3), dtype=np.float32, fill_value=np.nan)
@@ -101,8 +102,9 @@ def round(scene, ray_origins, ray_directions, use_triangle_material_ids=True):
             mask_transparent = (mat_ids == MAT_TRANSPARENT)
             mask_terminal    = ~(mask_mirror | mask_transparent)
 
-            if np.any(mask_mirror):      print(f"Num mirror hits:      {np.count_nonzero(mask_mirror)}")
-            if np.any(mask_transparent): print(f"Num transparent hits: {np.count_nonzero(mask_transparent)}")
+            if verbose:
+                if np.any(mask_mirror):      print(f"Num mirror hits:      {np.count_nonzero(mask_mirror)}")
+                if np.any(mask_transparent): print(f"Num transparent hits: {np.count_nonzero(mask_transparent)}")
 
             # handle simple (terminal/absorptive) materials
             where_terminal = mask_where[mask_terminal]
@@ -110,9 +112,7 @@ def round(scene, ray_origins, ray_directions, use_triangle_material_ids=True):
             terminated_mask[where_terminal] = True
 
             # handle transparent materials
-            pass    # TODO
-            where_transparent = mask_where[mask_transparent]
-            if np.any(mask_transparent): print(ray_origins[where_transparent][0])
+            pass
 
             # handle mirrors
             where_mirror = mask_where[mask_mirror]
@@ -128,10 +128,12 @@ def round(scene, ray_origins, ray_directions, use_triangle_material_ids=True):
 
 
 
-def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraModel, camera_pose: Pose3D, rays_per_pixel: int = 1, use_triangle_material_ids=True, use_vertex_colors=False, verbose=False) -> np.ndarray:
+def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraModel, camera_pose: Pose3D, rays_per_pixel: int = 1, use_triangle_material_ids=True, use_vertex_colors=False, max_rounds=5, verbose=False) -> np.ndarray:
     """
     Perform a raycast image capture simulation of the given camera at the given position within a scene.
-    Scene consists of colored meshes.
+
+    Scene consists of meshes with per-triangle material ID's. See `materials.py` for a full
+    list of allowable materials.
 
     By default, casts one ray per pixel (from it's center).
     """
@@ -180,9 +182,9 @@ def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraMo
         if verbose: print(f"Bounce depth: {round_count} | Rays in flight: {len(live_rays[0])}")
         live_indices = np.where(~rays_finalized_mask)[0]
 
-        if round_count > 10: break
+        if round_count > max_rounds: break
 
-        terminated_mask, ray_colors, remaining_live_rays = round(scene, *live_rays, use_triangle_material_ids)
+        terminated_mask, ray_colors, remaining_live_rays = _round(scene, *live_rays, use_triangle_material_ids)
         final_ray_colors[live_indices[terminated_mask]] = ray_colors
         rays_finalized_mask[live_indices[terminated_mask]] = True
 
@@ -201,8 +203,6 @@ def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraMo
     colors_avg = np.mean(final_ray_colors, axis=2)        # TODO: better color-space averaging
 
     return colors_avg
-
-    # return np.rollaxis(colors.reshape(H, W, s, s, 3), 2, 1).reshape(H*s, W*s, 3)
 
 
 if __name__ == "__main__":

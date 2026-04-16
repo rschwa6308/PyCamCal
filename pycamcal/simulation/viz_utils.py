@@ -34,13 +34,47 @@ def get_frustum_wireframe(fov_x: float, fov_y: float, scale: float = 1.0) -> ope
     return ls
 
 
-def visualize_camera_positioning(scene: list[open3d.geometry.TriangleMesh], camera: CameraModel, camera_poses: list[Pose3D], camera_viz_scale=1.0):
-    "Visualize a list of cameras positioned/oriented within a scene"
+def create_textured_quad(quad_vertices, image):
+    "Create a textured quad (e.g. to represent an image plane)"
+
+    mesh = open3d.geometry.TriangleMesh()
+
+    # 4 corners
+    mesh.vertices = open3d.utility.Vector3dVector(quad_vertices)
+
+    # two triangles
+    mesh.triangles = open3d.utility.Vector3iVector([
+        [0, 1, 2],
+        [0, 2, 3]
+    ])
+
+    # UVs
+    mesh.triangle_uvs = open3d.utility.Vector2dVector([
+        [0, 0], [1, 0], [1, 1],
+        [0, 0], [1, 1], [0, 1]
+    ])
+
+    mesh.textures = [open3d.geometry.Image(image)]
+    mesh.triangle_material_ids = open3d.utility.IntVector([0] * len(mesh.triangles))
+    mesh.compute_vertex_normals()
+
+    return mesh
+
+
+def visualize_camera_positioning(scene: list[open3d.geometry.TriangleMesh], camera: CameraModel, camera_poses: list[Pose3D], camera_viz_scale=1.0, images: list[np.ndarray] | None = None):
+    """
+    Visualize a list of cameras positioned/oriented within a scene.
+
+    Optionally, if `images` are provided, show the associated image captures on projected image planes. 
+    """
 
     fov_x, fov_y = camera.get_fov()
 
+    if images is not None:
+        assert len(images) == len(camera_poses)
+
     cam_viz_geoms = []
-    for cam_pose in camera_poses:
+    for i, cam_pose in enumerate(camera_poses):
         axes = open3d.geometry.TriangleMesh.create_coordinate_frame(size=camera_viz_scale)
         frustum = get_frustum_wireframe(fov_x, fov_y, scale=camera_viz_scale)
 
@@ -49,6 +83,11 @@ def visualize_camera_positioning(scene: list[open3d.geometry.TriangleMesh], came
 
         cam_viz_geoms.append(axes)
         cam_viz_geoms.append(frustum)
+
+        if images is not None:
+            image = np.ascontiguousarray(images[i])
+            image_plane = create_textured_quad(np.asarray(frustum.points)[1:], image)
+            cam_viz_geoms.append(image_plane)
 
     scene_axes = open3d.geometry.TriangleMesh.create_coordinate_frame()
 

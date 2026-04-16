@@ -4,7 +4,7 @@ import open3d
 from .mesh_helpers import paint_uniform_material, quad_to_tris
 from .materials import *
 
-def create_cornell_box(width=4, depth=4, height=5, use_triangle_material_ids=True) -> dict[str, open3d.geometry.TriangleMesh]:
+def create_cornell_box(width=4, depth=4, height=5, use_vertex_colors=True, use_triangle_material_ids=True) -> dict[str, open3d.geometry.TriangleMesh]:
     vertices = np.array([
         (-width/2, -depth/2, 0.0   ),   # 0
         (+width/2, -depth/2, 0.0   ),   # 1
@@ -35,18 +35,19 @@ def create_cornell_box(width=4, depth=4, height=5, use_triangle_material_ids=Tru
     wall_right = make_mesh(wall_right_verts)
     wall_back  = make_mesh(wall_back_verts)
 
+    if use_vertex_colors:
+        floor     .paint_uniform_color(lookup_material_color(MAT_GRAY_LIGHT))
+        ceiling   .paint_uniform_color(lookup_material_color(MAT_GRAY_LIGHT))
+        wall_left .paint_uniform_color(lookup_material_color(MAT_RED  ))
+        wall_right.paint_uniform_color(lookup_material_color(MAT_GREEN))
+        wall_back .paint_uniform_color(lookup_material_color(MAT_BLUE ))
+
     if use_triangle_material_ids:
         paint_uniform_material(floor,      MAT_GRAY_LIGHT)
         paint_uniform_material(ceiling,    MAT_GRAY_LIGHT)
         paint_uniform_material(wall_left,  MAT_RED  )
         paint_uniform_material(wall_right, MAT_GREEN)
         paint_uniform_material(wall_back,  MAT_BLUE )
-    else:
-        floor     .paint_uniform_color(lookup_material_color(MAT_GRAY_LIGHT))
-        ceiling   .paint_uniform_color(lookup_material_color(MAT_GRAY_LIGHT))
-        wall_left .paint_uniform_color(lookup_material_color(MAT_RED  ))
-        wall_right.paint_uniform_color(lookup_material_color(MAT_GREEN))
-        wall_back .paint_uniform_color(lookup_material_color(MAT_BLUE ))
 
     geoms = {
         "floor":      floor,
