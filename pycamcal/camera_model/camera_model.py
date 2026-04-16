@@ -108,7 +108,7 @@ class CameraModel:
     def to_dict(self) -> dict:
         return {
             "res_xy": self.res_xy.tolist(),
-            "fx": self.fx, "fy": self.fy,
+            "fx": self.fx.item(), "fy": self.fy.item(),
             "cx": self.cx, "cy": self.cy,
             "distortion": self.distortion.to_dict() if self.distortion else None
         }

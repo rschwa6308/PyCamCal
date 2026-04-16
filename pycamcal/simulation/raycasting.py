@@ -128,7 +128,7 @@ def round(scene, ray_origins, ray_directions, use_triangle_material_ids=True):
 
 
 
-def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraModel, camera_pose: Pose3D, rays_per_pixel: int = 1, use_triangle_material_ids=True, use_vertex_colors=False) -> np.ndarray:
+def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraModel, camera_pose: Pose3D, rays_per_pixel: int = 1, use_triangle_material_ids=True, use_vertex_colors=False, verbose=False) -> np.ndarray:
     """
     Perform a raycast image capture simulation of the given camera at the given position within a scene.
     Scene consists of colored meshes.
@@ -177,7 +177,7 @@ def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraMo
     live_rays = [ray_origins_world, ray_directions_world]
     round_count = 0
     while not np.all(rays_finalized_mask):
-        print(f"Bounce depth: {round_count} | Rays in flight: {len(live_rays[0])}")
+        if verbose: print(f"Bounce depth: {round_count} | Rays in flight: {len(live_rays[0])}")
         live_indices = np.where(~rays_finalized_mask)[0]
 
         if round_count > 10: break
@@ -192,7 +192,6 @@ def simulate_capture(scene: list[open3d.geometry.TriangleMesh], camera: CameraMo
         live_rays[0] += 1e-4 * live_rays[1]
 
         round_count += 1
-        print()
 
     # clip colors to [0, 1] (for numerical stability)
     final_ray_colors = np.clip(final_ray_colors, 0.0, 1.0)
